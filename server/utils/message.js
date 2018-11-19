@@ -1,6 +1,5 @@
 let moment = require('moment');
-let date = moment().format("dddd, MMMM Do YYYY, h:mm:ss a");
-
+let date = moment().valueOf();
 let generateMessage = (from,text)=>{
     return {
         from:from,
