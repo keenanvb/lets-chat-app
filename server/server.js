@@ -2,9 +2,16 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const socketIO = require('socket.io');
-let { generateMessage, generateLocationMessage } = require('./utils/message');
-let { isString } = require('./utils/validation');
-let { Users } = require('./utils/users');
+let {
+  generateMessage,
+  generateLocationMessage
+} = require('./utils/message');
+let {
+  isString
+} = require('./utils/validation');
+let {
+  Users
+} = require('./utils/users');
 
 let moment = require('moment');
 let date = moment().format("dddd, MMMM Do YYYY, h:mm:ss a");
@@ -26,7 +33,7 @@ io.on('connection', (socket) => {
 
   socket.on('join', (params, callback) => {
     if (!isString(params.name) || !isString(params.room)) {
-     return callback('Name and Room name is required');
+      return callback('Name and Room name is required');
     }
 
     socket.join(params.room);
@@ -36,7 +43,7 @@ io.on('connection', (socket) => {
     //Add user to list
     users.addUser(socket.id, params.name, params.room);
 
-    io.to(params.room).emit('updateUserList',users.getUserList(params.room));
+    io.to(params.room).emit('updateUserList', users.getUserList(params.room));
 
     // msg only the socket connections
     socket.emit('newMessage', generateMessage('Admin', 'Welcome  to the chat'));
@@ -56,9 +63,18 @@ io.on('connection', (socket) => {
   //socket.broadcast.emit('newMessage', generateMessage('Admin', 'New user has joined the chat'));
 
   socket.on('createMessage', (message, callback) => {
-    console.log('createMessage', message);
-    //msg to everyone including this socket
-    io.emit('newMessage', generateMessage(message.from, message.text));
+    let user = users.getUser(socket.id);
+
+    if (user && isString(message.text)) {
+      //msg to everyone including this socket
+      //io.emit('newMessage', generateMessage(message.from, message.text));
+
+      // Send msg to users in the chat room
+      io.to(user.room).emit('newMessage', generateMessage(user.name, message.text));
+    }
+
+    //console.log('createMessage', message);
+
     callback();
     //msg everyone expect this socket /tab1 broadcast event - tab2 will receive the msg
     // socket.broadcast.emit('newMessage', {
@@ -69,7 +85,16 @@ io.on('connection', (socket) => {
   });
 
   socket.on('createLocationMessage', (coordinates) => {
-    io.emit('newLocationMessage', generateLocationMessage('Admin', coordinates.lat, coordinates.lng));
+    let user = users.getUser(socket.id);
+
+    if (user) {
+      //msg to everyone including this socket
+      //io.emit('newLocationMessage', generateLocationMessage('Admin', coordinates.lat, coordinates.lng));
+
+      // Send msg to users in the chat room
+      io.to(user.room).emit('newLocationMessage', generateLocationMessage(user.name, coordinates.lat, coordinates.lng));
+    }
+
   })
 
   socket.on('disconnect', () => {
@@ -77,10 +102,10 @@ io.on('connection', (socket) => {
     //remove user when disconnects
     let user = users.removeUser(socket.id);
 
-    if(user){
-      io.to(user.room).emit('updateUserList',users.getUserList(user.room));
+    if (user) {
+      io.to(user.room).emit('updateUserList', users.getUserList(user.room));
       //io.to(params.room).emit('updateUserList', users.getUserList(params.room));
-      io.to(user.room).emit('newMessage',generateMessage('Admin',`${user.name} has left the chat`));
+      io.to(user.room).emit('newMessage', generateMessage('Admin', `${user.name} has left the chat`));
     }
   });
 
