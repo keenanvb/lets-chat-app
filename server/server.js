@@ -2,23 +2,18 @@ const path = require('path');
 const http = require('http');
 const express = require('express');
 const socketIO = require('socket.io');
-let {
-  generateMessage,
-  generateLocationMessage
-} = require('./utils/message');
+let { generateMessage, generateLocationMessage } = require('./utils/message');
+let { isString } = require('./utils/validation');
+let { Users } = require('./utils/users');
 
-let {
-  isString
-} = require('./utils/validation')
 let moment = require('moment');
 let date = moment().format("dddd, MMMM Do YYYY, h:mm:ss a");
-
 let app = express();
 let server = http.createServer(app);
 let io = socketIO(server);
-
 const publicPath = path.join(__dirname, '../public');
 const port = process.env.PORT || 3000;
+let users = new Users();
 
 app.use(express.static(publicPath));
 
@@ -31,10 +26,17 @@ io.on('connection', (socket) => {
 
   socket.on('join', (params, callback) => {
     if (!isString(params.name) || !isString(params.room)) {
-      callback('Name and Room name is required');
+     return callback('Name and Room name is required');
     }
 
     socket.join(params.room);
+    //remove from previous rooms
+    users.removeUser(socket.id);
+
+    //Add user to list
+    users.addUser(socket.id, params.name, params.room);
+
+    io.to(params.room).emit('updateUserList',users.getUserList(params.room));
 
     // msg only the socket connections
     socket.emit('newMessage', generateMessage('Admin', 'Welcome  to the chat'));
@@ -72,7 +74,16 @@ io.on('connection', (socket) => {
 
   socket.on('disconnect', () => {
     console.log('User was disconnected');
+    //remove user when disconnects
+    let user = users.removeUser(socket.id);
+
+    if(user){
+      io.to(user.room).emit('updateUserList',users.getUserList(user.room));
+      //io.to(params.room).emit('updateUserList', users.getUserList(params.room));
+      io.to(user.room).emit('newMessage',generateMessage('Admin',`${user.name} has left the chat`));
+    }
   });
+
 });
 
 server.listen(port, () => {
